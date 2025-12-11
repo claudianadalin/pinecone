@@ -1,0 +1,5 @@
+//@version=5
+// @export double
+
+double(x) =>
+    x * 2

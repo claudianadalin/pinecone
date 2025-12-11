@@ -1,0 +1,18 @@
+//@version=5
+// @import { customRsi } from "./indicators/custom_rsi.pine"
+// @import { formatPrice, roundTo } from "./utils/format.pine"
+
+indicator("Complex Test", overlay=false)
+
+length = input.int(14, "RSI Length")
+
+rsiValue = customRsi(close, length)
+roundedRsi = roundTo(rsiValue, 2)
+
+plot(roundedRsi, "RSI", color.blue)
+
+// Display formatted price
+var label priceLabel = na
+if barstate.islast
+    label.delete(priceLabel)
+    priceLabel := label.new(bar_index, rsiValue, formatPrice(close))

@@ -1,0 +1,4 @@
+{
+  "entry": "src/main.pine",
+  "output": "dist/bundle.pine"
+}

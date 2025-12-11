@@ -1,0 +1,17 @@
+/.claude/
+/docs/
+/venv/
+
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*.pyzwz
+*.pyzwzw
+
+.pytest_cache/

@@ -1,0 +1,6 @@
+//@version=5
+// @import { bar } from "./b.pine"
+// @export foo
+
+foo(x) =>
+    bar(x)

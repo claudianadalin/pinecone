@@ -1,0 +1,6 @@
+//@version=5
+// @import { formatResult } from "./utils/format.pine"
+
+indicator("Nested Test", overlay=true)
+
+plot(formatResult(close))

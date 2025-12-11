@@ -1,0 +1,6 @@
+//@version=5
+// @import { foo } from "./a.pine"
+
+indicator("Circular Test", overlay=true)
+
+plot(foo(close))

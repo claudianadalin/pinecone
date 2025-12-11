@@ -1,0 +1,7 @@
+//@version=5
+// @import { double } from "./math_utils.pine"
+
+indicator("Test", overlay=true)
+
+result = double(close)
+plot(result)

@@ -1,0 +1,6 @@
+//@version=5
+// @import { double } from "./math.pine"
+// @export formatResult
+
+formatResult(x) =>
+    double(x)
