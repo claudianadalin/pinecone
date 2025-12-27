@@ -1,14 +1,20 @@
 """Main bundler orchestration."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pynescript.ast import unparse
 from pynescript.ast.grammar.asdl.generated.PinescriptASTNode import Script
+from pynescript.ast.node import Import
 
 from pinecone.config import PineconeConfig
-from pinecone.renamer import IdentifierRenamer, build_rename_map
+from pinecone.renamer import (
+    IdentifierRenamer,
+    build_rename_map,
+    extract_top_level_identifiers,
+)
 from pinecone.resolver import DependencyGraph, Module, resolve_dependencies
 
 
@@ -80,6 +86,78 @@ def _get_version(entry: Module) -> str:
     return "//@version=5"
 
 
+def _extract_external_imports(module: Module) -> list[Import]:
+    """Extract external TradingView import statements from a module.
+
+    Args:
+        module: The module to extract imports from.
+
+    Returns:
+        List of Import AST nodes.
+    """
+    imports = []
+    for stmt in module.ast.body:
+        if isinstance(stmt, Import):
+            imports.append(stmt)
+    return imports
+
+
+def _deduplicate_imports(all_imports: list[Import]) -> list[Import]:
+    """Deduplicate external imports, keeping the first occurrence.
+
+    If the same library is imported with different aliases, keeps the first one.
+
+    Args:
+        all_imports: List of all Import nodes from all modules.
+
+    Returns:
+        Deduplicated list of Import nodes.
+    """
+    seen: dict[str, Import] = {}
+    for imp in all_imports:
+        # Create unique key from namespace/name/version
+        key = f"{imp.namespace}/{imp.name}/{imp.version}"
+        if key not in seen:
+            seen[key] = imp
+    return list(seen.values())
+
+
+def _is_external_import(stmt: Any) -> bool:
+    """Check if a statement is an external TradingView import.
+
+    Args:
+        stmt: An AST statement node.
+
+    Returns:
+        True if this is an external import statement.
+    """
+    return isinstance(stmt, Import)
+
+
+def _postprocess_output(output: str) -> str:
+    """Apply post-processing fixes to bundled output.
+
+    Fixes known issues with pynescript's unparser:
+    - Generic type function calls: `array.new < type > args` -> `array.new<type>(args)`
+
+    Args:
+        output: The raw bundled output string.
+
+    Returns:
+        Post-processed output with fixes applied.
+    """
+    # Fix generic type function calls
+    # Pattern matches: identifier.new < type > args
+    # Where args can be a single number or comma-separated numbers
+    # Examples: array.new < line > 500 -> array.new<line>(500)
+    #           matrix.new < float > 0, 0 -> matrix.new<float>(0, 0)
+    pattern = r"(\w+\.new)\s*<\s*(\w+)\s*>\s*(\d+(?:\s*,\s*\d+)*)"
+    replacement = r"\1<\2>(\3)"
+    output = re.sub(pattern, replacement, output)
+
+    return output
+
+
 def bundle(config: PineconeConfig) -> BundleResult:
     """Bundle PineScript files into a single output.
 
@@ -104,29 +182,39 @@ def bundle(config: PineconeConfig) -> BundleResult:
     """
     # Step 1: Resolve all dependencies
     graph = resolve_dependencies(config.entry, config.root_dir)
+    entry_path = config.entry.resolve()
 
-    # Step 2: Build complete rename map for all modules
+    # Step 2: Build rename maps for all dependency modules (not entry)
+    # We rename ALL top-level identifiers to avoid collisions when bundled
     all_renames: dict[str, str] = {}
     module_renames: dict[Path, dict[str, str]] = {}
 
     for module_path in graph.order:
+        # Skip the entry module - its identifiers stay as-is
+        if module_path == entry_path:
+            continue
+
         module = graph.modules[module_path]
-        if module.exported_names:
+        # Extract ALL top-level identifiers, not just exported ones
+        all_identifiers = extract_top_level_identifiers(module.ast)
+
+        if all_identifiers:
             renames = build_rename_map(
-                module.exported_names,
+                all_identifiers,
                 module_path,
                 config.root_dir,
             )
             module_renames[module_path] = renames
             all_renames.update(renames)
 
-    # Step 3: Rename identifiers in each module's AST
+    # Step 3: Rename all identifiers in each dependency module's AST
     for module_path, renames in module_renames.items():
         module = graph.modules[module_path]
         renamer = IdentifierRenamer(renames)
         renamer.visit(module.ast)
 
     # Step 4: Rename imported references in all modules (including entry)
+    # This updates references to imported names to use their prefixed versions
     for module_path in graph.order:
         module = graph.modules[module_path]
         # Only rename references to imports this module uses
@@ -141,7 +229,15 @@ def bundle(config: PineconeConfig) -> BundleResult:
             renamer = IdentifierRenamer(import_renames)
             renamer.visit(module.ast)
 
-    # Step 5: Build output
+    # Step 5: Collect and deduplicate external imports from all modules
+    all_external_imports: list[Import] = []
+    for module_path in graph.order:
+        module = graph.modules[module_path]
+        all_external_imports.extend(_extract_external_imports(module))
+
+    unique_imports = _deduplicate_imports(all_external_imports)
+
+    # Step 6: Build output
     output_lines = []
 
     # Version annotation
@@ -153,10 +249,17 @@ def bundle(config: PineconeConfig) -> BundleResult:
     if declaration:
         output_lines.append(unparse_single(declaration))
 
+    # External imports (deduplicated) - must come after indicator/strategy declaration
+    if unique_imports:
+        for imp in unique_imports:
+            import_str = f"import {imp.namespace}/{imp.name}/{imp.version}"
+            if imp.alias:
+                import_str += f" as {imp.alias}"
+            output_lines.append(import_str)
+
     output_lines.append("")
 
     # Bundled modules (in topological order, excluding entry)
-    entry_path = config.entry.resolve()
     dependency_modules = [p for p in graph.order if p != entry_path]
 
     if dependency_modules:
@@ -167,6 +270,9 @@ def bundle(config: PineconeConfig) -> BundleResult:
             output_lines.append(f"// --- From: {module_path.name} ---")
 
             for stmt in module.ast.body:
+                # Skip external import statements (already emitted above)
+                if _is_external_import(stmt):
+                    continue
                 unparsed = unparse_single(stmt)
                 if unparsed.strip():  # Skip empty lines
                     output_lines.append(unparsed)
@@ -176,11 +282,17 @@ def bundle(config: PineconeConfig) -> BundleResult:
     # Entry module code (excluding declaration which is already at top)
     output_lines.append("// --- Main ---")
     for stmt in entry_other:
+        # Skip external import statements (already emitted above)
+        if _is_external_import(stmt):
+            continue
         unparsed = unparse_single(stmt)
         if unparsed.strip():
             output_lines.append(unparsed)
 
     output = "\n".join(output_lines)
+
+    # Step 7: Apply post-processing fixes
+    output = _postprocess_output(output)
 
     return BundleResult(
         output=output,

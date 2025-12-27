@@ -3,7 +3,12 @@
 import pytest
 from pathlib import Path
 
-from pinecone.bundler import bundle
+from pinecone.bundler import (
+    bundle,
+    _postprocess_output,
+    _deduplicate_imports,
+    _extract_external_imports,
+)
 from pinecone.config import load_config
 from pinecone.errors import CircularDependencyError
 
@@ -86,3 +91,96 @@ class TestBundlerIntegration:
         assert "// --- Bundled modules ---" in result.output
         assert "// --- From:" in result.output
         assert "// --- Main ---" in result.output
+
+
+class TestPostprocessOutput:
+    """Tests for the _postprocess_output function."""
+
+    def test_fixes_array_new_generic_syntax(self) -> None:
+        """Test that array.new<type>(args) syntax is fixed."""
+        input_text = "var array<line> lines = array.new < line > 500"
+        result = _postprocess_output(input_text)
+        assert result == "var array<line> lines = array.new<line>(500)"
+
+    def test_fixes_array_new_with_two_args(self) -> None:
+        """Test that array.new<type>(arg1, arg2) syntax is fixed."""
+        input_text = "var array<float> arr = array.new < float > 10, 0"
+        result = _postprocess_output(input_text)
+        assert result == "var array<float> arr = array.new<float>(10, 0)"
+
+    def test_fixes_matrix_new_generic_syntax(self) -> None:
+        """Test that matrix.new<type>(args) syntax is fixed."""
+        input_text = "var matrix<float> m = matrix.new < float > 3, 3"
+        result = _postprocess_output(input_text)
+        assert result == "var matrix<float> m = matrix.new<float>(3, 3)"
+
+    def test_preserves_correct_syntax(self) -> None:
+        """Test that already correct syntax is preserved."""
+        input_text = "var array<line> lines = array.new<line>(500)"
+        result = _postprocess_output(input_text)
+        assert result == input_text
+
+    def test_fixes_multiple_occurrences(self) -> None:
+        """Test that multiple occurrences are all fixed."""
+        input_text = """var array<line> a = array.new < line > 100
+var array<float> b = array.new < float > 200"""
+        result = _postprocess_output(input_text)
+        assert "array.new<line>(100)" in result
+        assert "array.new<float>(200)" in result
+
+    def test_preserves_other_content(self) -> None:
+        """Test that non-generic content is preserved."""
+        input_text = """indicator("Test")
+x = 1 < 2
+y = 3 > 1
+var array<line> lines = array.new < line > 500
+plot(x)"""
+        result = _postprocess_output(input_text)
+        assert 'indicator("Test")' in result
+        assert "x = 1 < 2" in result
+        assert "y = 3 > 1" in result
+        assert "array.new<line>(500)" in result
+        assert "plot(x)" in result
+
+
+class TestImportDeduplication:
+    """Tests for import deduplication functionality."""
+
+    def test_deduplicate_same_import(self) -> None:
+        """Test that duplicate imports are deduplicated."""
+        from pynescript.ast.node import Import
+
+        imports = [
+            Import(namespace="TradingView", name="ta", version=9, alias="ta"),
+            Import(namespace="TradingView", name="ta", version=9, alias=None),
+        ]
+        result = _deduplicate_imports(imports)
+        assert len(result) == 1
+        assert result[0].alias == "ta"  # First one is kept
+
+    def test_different_imports_preserved(self) -> None:
+        """Test that different imports are all preserved."""
+        from pynescript.ast.node import Import
+
+        imports = [
+            Import(namespace="TradingView", name="ta", version=9, alias="ta"),
+            Import(namespace="TradingView", name="math", version=1, alias=None),
+        ]
+        result = _deduplicate_imports(imports)
+        assert len(result) == 2
+
+    def test_empty_imports(self) -> None:
+        """Test that empty import list returns empty."""
+        result = _deduplicate_imports([])
+        assert result == []
+
+    def test_different_versions_not_deduplicated(self) -> None:
+        """Test that same library with different versions are kept separate."""
+        from pynescript.ast.node import Import
+
+        imports = [
+            Import(namespace="TradingView", name="ta", version=8, alias=None),
+            Import(namespace="TradingView", name="ta", version=9, alias=None),
+        ]
+        result = _deduplicate_imports(imports)
+        assert len(result) == 2

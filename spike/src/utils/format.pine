@@ -1,9 +1,0 @@
-//@version=5
-// @export formatPrice, roundTo
-
-formatPrice(price) =>
-    str.tostring(price, "#.##")
-
-roundTo(val, decimals) =>
-    mult = math.pow(10, decimals)
-    math.round(val * mult) / mult

@@ -1,4 +1,0 @@
-{
-  "entry": "src/main_complex.pine",
-  "output": "dist/complex_output.pine"
-}

@@ -1,6 +1,8 @@
 /.claude/
 /docs/
 /venv/
+/.venv/
+/.notes/
 
 dist/
 __pycache__/

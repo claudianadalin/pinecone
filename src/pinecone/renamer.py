@@ -1,8 +1,9 @@
 """AST identifier renaming for namespace isolation."""
 
 from pathlib import Path
+from typing import Any
 
-from pynescript.ast import FunctionDef, Load, Name, NodeTransformer
+from pynescript.ast import Assign, FunctionDef, Name, NodeTransformer, Tuple
 
 
 def path_to_prefix(path: Path, root_dir: Path) -> str:
@@ -48,8 +49,8 @@ def path_to_prefix(path: Path, root_dir: Path) -> str:
 class IdentifierRenamer(NodeTransformer):
     """Rename identifiers in AST.
 
-    Renames function definitions and their references based on a rename map.
-    Only renames Name nodes with Load context (references), not Store (assignments).
+    Renames function definitions, variable declarations, and their references
+    based on a rename map.
     """
 
     def __init__(self, renames: dict[str, str]) -> None:
@@ -62,32 +63,93 @@ class IdentifierRenamer(NodeTransformer):
         super().__init__()
 
     def visit_FunctionDef(self, node: FunctionDef) -> FunctionDef:
-        """Rename function definitions."""
+        """Rename function definitions.
+
+        Skips method definitions (node.method is truthy) since methods are
+        called via dot notation and don't collide in the global namespace.
+        """
+        # Skip methods - they're called via dot notation (obj.method())
+        # and don't need renaming to avoid collisions
+        if node.method:
+            self.generic_visit(node)
+            return node
+
         if node.name in self.renames:
             node.name = self.renames[node.name]
         # Continue visiting children (for nested functions, etc.)
         self.generic_visit(node)
         return node
 
-    def visit_Name(self, node: Name) -> Name:
-        """Rename name references.
+    def visit_Assign(self, node: Assign) -> Assign:
+        """Rename variable declarations in assignment statements."""
+        self._rename_target(node.target)
+        # Continue visiting children (the value expression)
+        self.generic_visit(node)
+        return node
 
-        Only renames references (Load context), not assignments (Store context).
-        """
-        if node.id in self.renames and isinstance(node.ctx, Load):
+    def _rename_target(self, target: Any) -> None:
+        """Rename an assignment target (handles both single names and tuples)."""
+        if isinstance(target, Name) and target.id in self.renames:
+            target.id = self.renames[target.id]
+        elif isinstance(target, Tuple):
+            # Handle tuple unpacking: [a, b] = ...
+            for elt in target.elts:
+                self._rename_target(elt)
+
+    def visit_Name(self, node: Name) -> Name:
+        """Rename name references and declarations."""
+        if node.id in self.renames:
             node.id = self.renames[node.id]
         return node
 
 
+def extract_top_level_identifiers(ast: Any) -> list[str]:
+    """Extract all top-level identifier names from a module AST.
+
+    This includes:
+    - Variable declarations (Assign)
+    - Function definitions (FunctionDef) - but NOT methods
+    - Tuple unpacking targets
+
+    Methods are excluded because they're called via dot notation and
+    don't collide in the global namespace.
+
+    Args:
+        ast: The parsed module AST (Script node).
+
+    Returns:
+        List of identifier names defined at the top level.
+    """
+    identifiers = []
+
+    def extract_from_target(target: Any) -> None:
+        """Extract names from an assignment target."""
+        if isinstance(target, Name):
+            identifiers.append(target.id)
+        elif isinstance(target, Tuple):
+            for elt in target.elts:
+                extract_from_target(elt)
+
+    for stmt in ast.body:
+        if isinstance(stmt, Assign):
+            extract_from_target(stmt.target)
+        elif isinstance(stmt, FunctionDef):
+            # Skip methods - they're called via dot notation (obj.method())
+            if not stmt.method:
+                identifiers.append(stmt.name)
+
+    return identifiers
+
+
 def build_rename_map(
-    exported_names: list[str],
+    names: list[str],
     module_path: Path,
     root_dir: Path,
 ) -> dict[str, str]:
-    """Build rename map for a module's exports.
+    """Build rename map for a module's identifiers.
 
     Args:
-        exported_names: List of exported identifiers.
+        names: List of identifiers to rename.
         module_path: Path to the module file.
         root_dir: Project root directory.
 
@@ -99,4 +161,4 @@ def build_rename_map(
         {'foo': '__utils__foo', 'bar': '__utils__bar'}
     """
     prefix = path_to_prefix(module_path, root_dir)
-    return {name: prefix + name for name in exported_names}
+    return {name: prefix + name for name in names}

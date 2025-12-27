@@ -1,8 +1,0 @@
-//@version=5
-// @export customRsi
-
-customRsi(src, len) =>
-    change = ta.change(src)
-    gain = ta.rma(math.max(change, 0), len)
-    loss = ta.rma(-math.min(change, 0), len)
-    100 - (100 / (1 + gain / loss))
