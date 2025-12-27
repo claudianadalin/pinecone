@@ -1,8 +1,10 @@
 /.claude/
-/docs/
 /venv/
 /.venv/
 /.notes/
+
+# MkDocs generated site
+/site/
 
 dist/
 __pycache__/

@@ -1,0 +1,65 @@
+site_name: Pinecone
+site_description: A bundler for multi-file PineScript development
+site_url: https://claudianadalin.github.io/pinecone
+
+repo_name: claudianadalin/pinecone
+repo_url: https://github.com/claudianadalin/pinecone
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - admonition
+  - pymdownx.details
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - CLI Reference: cli.md
+  - How It Works: how-it-works.md
+
+copyright: Built by Claudia Nadalin
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/claudianadalin
+      name: GitHub
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/claudia-nadalin/
+      name: LinkedIn
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/claudianadalin
+      name: X (Twitter)
+    - icon: fontawesome/solid/globe
+      link: https://claudianadalin.com
+      name: Personal Website

@@ -2,6 +2,8 @@
 
 A bundler for multi-file PineScript development. Write modular PineScript code across multiple files and bundle them into a single TradingView-compatible script.
 
+Docs located [here]("https://claudianadalin.github.io/pinecone").
+
 ## Features
 
 - **Multi-file support** - Split your PineScript code into multiple files
@@ -113,6 +115,25 @@ If `utils.pine` defines `myFunc`, it becomes `__utils__myFunc` in the bundle. Yo
 
 - Python 3.10+
 
+## Documentation
+
+Full documentation is available at [claudianadalin.github.io/pinecone](https://claudianadalin.github.io/pinecone)
+
+### Preview docs locally
+
+```bash
+source .venv/bin/activate
+mkdocs serve
+```
+
+Then open http://localhost:8000
+
+### Deploy docs to GitHub Pages
+
+```bash
+mkdocs gh-deploy
+```
+
 ## Development
 
 ```bash
@@ -125,6 +146,12 @@ pytest
 # Run tests with coverage
 pytest --cov
 ```
+
+## Support
+
+If you find Pinecone useful, consider buying me a coffee!
+
+<a href="https://www.buymeacoffee.com/claudianadalin" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50" ></a>
 
 ## License
 
