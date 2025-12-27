@@ -16,8 +16,8 @@ A bundler for multi-file PineScript development. Write modular PineScript code a
 Clone the repository and install in development mode:
 
 ```bash
-git clone https://github.com/yourusername/pinecone-bundler.git
-cd pinecone-bundler
+git clone https://github.com/claudianadalin/pinecone.git
+cd pinecone
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e .
