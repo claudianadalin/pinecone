@@ -36,15 +36,16 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "mkdocs-material>=9.0.0",
 ]
 
 [project.scripts]
 pinecone = "pinecone.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/pinecone-bundler/pinecone"
-Documentation = "https://github.com/pinecone-bundler/pinecone#readme"
-Repository = "https://github.com/pinecone-bundler/pinecone"
+Homepage = "https://github.com/claudianadalin/pinecone"
+Documentation = "https://claudianadalin.github.io/pinecone"
+Repository = "https://github.com/claudianadalin/pinecone"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pinecone"]
