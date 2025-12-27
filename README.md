@@ -2,7 +2,7 @@
 
 A bundler for multi-file PineScript development. Write modular PineScript code across multiple files and bundle them into a single TradingView-compatible script.
 
-Docs located [here]("https://claudianadalin.github.io/pinecone").
+Docs located [here](https://claudianadalin.github.io/pinecone).
 
 ## Features
 
